@@ -18,6 +18,7 @@ public:
 private:
 	static const Cast128::uint8 getByte(Cast128::Key key, Cast128::uint8 i);
 	static Cast128::uint* Cast128::generateKeys(const Cast128::Key key);
+	static void writeLastBlock(std::ofstream& out,Cast128::Block v);
 
 private:
 	typedef uint sBlock[256];
@@ -31,15 +32,17 @@ private:
 	static const sBlock S8;
 
 public:
+	static void generateKey(std::string outFileName);
 	static Block encrypt(const Key key, const Block msg);
 	static Block decrypt(const Key key, const Block msg);
-	
+	static void readKey(const std::string path, Key* key);
 	static uint sumMod2_32(uint a, uint b);
 	static Block go(const Key key, const Block msg, bool isEncrypt);
 	static uint subtractMod2_32(uint a, uint b);
 	static uint cyclicShift(uint x, uint8 shift);
 	static void splitI(uint I, uint8* Ia, uint8* Ib, uint8* Ic, uint8* Id);
-	static void encryptFile(std::string inputFile, std::string outFile);
+	static void encryptFile(std::string inputFileName, std::string outFileName, Cast128::Key key);
+	static void decryptFile(std::string inputFileName, std::string outFileName, Cast128::Key key);
 };
 
 

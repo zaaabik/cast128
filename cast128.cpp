@@ -4,11 +4,14 @@
 #include<fstream>
 #include<stdint.h>
 #include<vector>
-#include <iterator>
+#include<iterator>
+#include<random>
 static const uint64_t MOD_2_32 = uint64_t(2) << 31;
 static const bool ENCRYPT = false;
 static const bool DECRYPT = true;
-static const Cast128::uint8 K_MAP[sizeof(Cast128::Key)] = {
+static const uint8_t PADDING_VALUE = 0x00;
+
+static const Cast128::uint8 getBitNumber[sizeof(Cast128::Key)] = {
 	3,  2,  1,  0,
 	7,  6,  5,  4,
 	11, 10,  9,  8,
@@ -16,8 +19,13 @@ static const Cast128::uint8 K_MAP[sizeof(Cast128::Key)] = {
 };
 
 const Cast128::uint8 Cast128::getByte(Cast128::Key key, Cast128::uint8 i) {
-	return ((Cast128::uint8*) key)[K_MAP[i]];
+	return ((Cast128::uint8*) key)[getBitNumber[i]];
 }
+
+void setByte(Cast128::Block& bl, uint8_t pos, uint8_t byte) {
+	((uint8_t*)bl.Msg)[getBitNumber[pos]] = byte;
+}
+
 
 void Cast128::splitI(uint I, uint8* Ia, uint8* Ib, uint8* Ic, uint8* Id) {
 	*Ia = (I >> 24) & 0xFF;
@@ -152,18 +160,117 @@ Cast128::Block Cast128::decrypt(const Key key, const Block Block) {
 	return go(key, Block, DECRYPT);
 }
 
-void Cast128::encryptFile(std::string inputFileName, std::string outFileName) {
+void addPadding(std::vector<char>& v) {
+	int countPaddingByte = v.size() % 8;
+	if (countPaddingByte == 0) {
+		return;
+	}
+	char* tmpArray = new char[countPaddingByte];
+	for (int i = 0; i < 8 - countPaddingByte; ++i) {
+		v.push_back(PADDING_VALUE);
+	}
+}
+
+void Cast128::writeLastBlock(std::ofstream& out, Cast128::Block v) {
+	char res[8];
+	for (int i = 0; i < 8; ++i) {
+		res[i] = getByte(v.Msg, i);
+	}
+	int coutPaddingBytes = 0;
+	for (int i = 8 - 1; i >= 1; --i) {
+		if (res[i] == PADDING_VALUE) {
+			coutPaddingBytes++;
+		} else {
+			break;
+		}
+	}
+	for (int i = 0; i < 8 - coutPaddingBytes; ++i) {
+		out.write((char*)(&res[i]), sizeof(char));
+	}
+}
+
+void Cast128::encryptFile(std::string inputFileName, std::string outFileName, Cast128::Key key) {
 	std::ifstream inputFile(inputFileName, std::ios::binary | std::ios::in);
 	if (!inputFile.is_open()) {
 		return;
 	}
-	uint32_t i;
-	while (inputFile.read((char *)&i, sizeof(i))) {
-		std::cout << i;
+	std::vector<char> res((std::istreambuf_iterator<char>(inputFile)),
+		std::istreambuf_iterator<char>());
+	addPadding(res);
+	int blocksCount = res.size() / 8;
+	std::vector<Block> blockVector;
+	for (int i = 0; i < blocksCount; ++i) {
+		Block block = { 0,0 };
+		for (int j = 7, z = 0; j >= 0; --j,z++) {
+			setByte(block, z, res[i*8 + z]);
+		}
+		blockVector.push_back(block);
+	}
+	std::ofstream out(outFileName, std::ios::binary);
+	for (int i = 0; i < blockVector.size(); ++i) {
+		Block encrypredBlock = encrypt(key, blockVector[i]);
+		for (int i = 0; i < 8; ++i) {
+			uint8_t tmp = getByte(encrypredBlock.Msg, i);
+			out.write((char*)(&tmp),sizeof(char));
+		}
+	}
+}
+
+void Cast128::decryptFile(std::string inputFileName, std::string outFileName, Cast128::Key key) {
+	std::ifstream inputFile(inputFileName, std::ios::binary | std::ios::in);
+	if (!inputFile.is_open()) {
+		return;
+	}
+	std::vector<char> res((std::istreambuf_iterator<char>(inputFile)),
+		std::istreambuf_iterator<char>());
+	addPadding(res);
+	int blocksCount = res.size() / 8;
+	std::vector<Block> blockVector;
+	for (int i = 0; i < blocksCount; ++i) {
+		Block block = { 0,0 };
+		for (int j = 7, z = 0; j >= 0; --j, z++) {
+		
+			setByte(block, z, res[i * 8 + z]);
+		}
+		blockVector.push_back(block);
+	}
+	std::ofstream out(outFileName, std::ios::binary);
+	for (int i = 0; i < blockVector.size() - 1; ++i) {
+		Block encrypredBlock = decrypt(key, blockVector[i]);
+		for (int i = 0; i < 8; ++i) {
+			uint8_t tmp = getByte(encrypredBlock.Msg, i);
+			out.write((char*)(&tmp), sizeof(char));
+		}
+	}
+	Block encrypredBlock = decrypt(key, blockVector[blockVector.size() - 1]);
+	writeLastBlock(out, encrypredBlock);
+}
+
+void Cast128::readKey(const std::string path, Cast128::Key* key) {
+	std::ifstream keyFile(path);
+	if (!keyFile.is_open()) {
+		return;
+	}
+	std::vector<char> res((std::istreambuf_iterator<char>(keyFile)),
+		std::istreambuf_iterator<char>());
+	
+	for (int i = keyLength / 8 - 1; i >= 0; --i) {
+		((uint8_t*)(*key))[getBitNumber[i]] = res[i];
 	}
 	
-	std::ofstream outFile(outFileName, std::ios::out | std::ios::binary);
-	
+}
+
+void Cast128::generateKey(std::string outFileName) {
+	Cast128::Key key;
+	std::srand(std::time(0));
+	for (int i = 0; i < 4; ++i) {
+		std::random_device rd;
+		std::mt19937 gen(rd());
+		std::uniform_int_distribution<uint32_t> dis(0, UINT32_MAX);
+		(key)[i] = dis(gen);
+	}
+	std::ofstream outFile(outFileName);
+	outFile.write((char*)(&key), sizeof(key));
 }
 
 const Cast128::sBlock Cast128::S1 = {
