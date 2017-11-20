@@ -10,9 +10,9 @@ static class Cast128 {
 public:
 	typedef uint32_t uint;
 	typedef uint8_t  uint8;
-	typedef uint Key[keyLength / sizeof(uint) / 8];
+	typedef uint Key[keyLength / 8];
 	struct Block {
-		uint Msg[blockLength / sizeof(uint) / 8];
+		uint Msg[blockLength / 8];
 	};
 	
 private:
@@ -32,7 +32,7 @@ private:
 	static const sBlock S8;
 
 public:
-	static void generateKey(std::string outFileName);
+	static void generateKey( std::string outFileName);
 	static Block encrypt(const Key key, const Block msg);
 	static Block decrypt(const Key key, const Block msg);
 	static void readKey(const std::string path, Key* key);
@@ -43,6 +43,7 @@ public:
 	static void splitI(uint I, uint8* Ia, uint8* Ib, uint8* Ic, uint8* Id);
 	static void encryptFile(std::string inputFileName, std::string outFileName, Cast128::Key key);
 	static void decryptFile(std::string inputFileName, std::string outFileName, Cast128::Key key);
+	static void correlation(std::string src, std::string encr);
 };
 
 

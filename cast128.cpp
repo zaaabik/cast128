@@ -6,10 +6,13 @@
 #include<vector>
 #include<iterator>
 #include<random>
+#include<bitset>
+
 static const uint64_t MOD_2_32 = uint64_t(2) << 31;
 static const bool ENCRYPT = false;
 static const bool DECRYPT = true;
 static const uint8_t PADDING_VALUE = 0x00;
+static const int KEY_BYTE_SIZE = 8;
 
 static const Cast128::uint8 getBitNumber[sizeof(Cast128::Key)] = {
 	3,  2,  1,  0,
@@ -25,7 +28,6 @@ const Cast128::uint8 Cast128::getByte(Cast128::Key key, Cast128::uint8 i) {
 void setByte(Cast128::Block& bl, uint8_t pos, uint8_t byte) {
 	((uint8_t*)bl.Msg)[getBitNumber[pos]] = byte;
 }
-
 
 void Cast128::splitI(uint I, uint8* Ia, uint8* Ib, uint8* Ic, uint8* Id) {
 	*Ia = (I >> 24) & 0xFF;
@@ -56,8 +58,7 @@ Cast128::uint* Cast128::generateKeys(const Cast128::Key key) {
 	Cast128::Key originKey;
 	std::memcpy(originKey, key, sizeof(Key));
 	Cast128::uint keys[keysCount] = { 0 };
-	for( int i = 0; i < 2; ++i ) {
-		
+	for( int i = 0; i < 2; ++i ) {		
         tmpKey[ 0 ] = originKey[ 0 ] ^ S5[ getByte( originKey, 0xD ) ] ^ S6[ getByte( originKey, 0xF ) ] ^ S7[ getByte( originKey, 0xC ) ] ^ S8[ getByte( originKey, 0xE ) ] ^ S7[ getByte( originKey, 0x8 ) ];
         tmpKey[ 1 ] = originKey[ 2 ] ^ S5[ getByte( tmpKey, 0x0 ) ] ^ S6[ getByte( tmpKey, 0x2 ) ] ^ S7[ getByte( tmpKey, 0x1 ) ] ^ S8[ getByte( tmpKey, 0x3 ) ] ^ S8[ getByte( originKey, 0xA ) ];
         tmpKey[ 2 ] = originKey[ 3 ] ^ S5[ getByte( tmpKey, 0x7 ) ] ^ S6[ getByte( tmpKey, 0x6 ) ] ^ S7[ getByte( tmpKey, 0x5 ) ] ^ S8[ getByte( tmpKey, 0x4 ) ] ^ S5[ getByte( originKey, 0x9 ) ];
@@ -246,6 +247,33 @@ void Cast128::decryptFile(std::string inputFileName, std::string outFileName, Ca
 	writeLastBlock(out, encrypredBlock);
 }
 
+void Cast128::correlation(std::string src, std::string encr) {
+	std::ifstream inputFile(src, std::ios::binary | std::ios::in);
+	if (!inputFile.is_open()) {
+		return;
+	}
+	std::vector<char> res((std::istreambuf_iterator<char>(inputFile)),
+		std::istreambuf_iterator<char>());
+	double xCount = 0;
+	for each (auto var in res) {
+		std::bitset<32> bit(var);
+		xCount += bit.count() / 32.0;
+	}
+
+	std::ifstream e(encr, std::ios::binary | std::ios::in);
+	if (!inputFile.is_open()) {
+		return;
+	}
+	std::vector<char> res2((std::istreambuf_iterator<char>(e)),
+		std::istreambuf_iterator<char>());
+
+	double yCount = 0;
+	for each (auto var in res2) {
+		std::bitset<32> bit(var);
+		yCount += bit.count() / 32.0;
+	}
+}
+
 void Cast128::readKey(const std::string path, Cast128::Key* key) {
 	std::ifstream keyFile(path);
 	if (!keyFile.is_open()) {
@@ -253,11 +281,12 @@ void Cast128::readKey(const std::string path, Cast128::Key* key) {
 	}
 	std::vector<char> res((std::istreambuf_iterator<char>(keyFile)),
 		std::istreambuf_iterator<char>());
-	
+	if (res.size() < keyLength / 8) {
+		throw std::exception("key is too small!");
+	}
 	for (int i = keyLength / 8 - 1; i >= 0; --i) {
 		((uint8_t*)(*key))[getBitNumber[i]] = res[i];
 	}
-	
 }
 
 void Cast128::generateKey(std::string outFileName) {
