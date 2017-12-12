@@ -14,7 +14,7 @@ static const bool DECRYPT = true;
 static const uint8_t PADDING_VALUE = 0x00;
 static const int KEY_BYTE_SIZE = 8;
 
-static const Cast128::uint8 getBitNumber[sizeof(Cast128::Key)] = {
+static const Cast128::uint8 getByteNumber[sizeof(Cast128::Key)] = {
 	3,  2,  1,  0,
 	7,  6,  5,  4,
 	11, 10,  9,  8,
@@ -22,11 +22,11 @@ static const Cast128::uint8 getBitNumber[sizeof(Cast128::Key)] = {
 };
 
 const Cast128::uint8 Cast128::getByte(Cast128::Key key, Cast128::uint8 i) {
-	return ((Cast128::uint8*) key)[getBitNumber[i]];
+	return ((Cast128::uint8*) key)[getByteNumber[i]];
 }
 
 void setByte(Cast128::Block& bl, uint8_t pos, uint8_t byte) {
-	((uint8_t*)bl.Msg)[getBitNumber[pos]] = byte;
+	((uint8_t*)bl.Msg)[getByteNumber[pos]] = byte;
 }
 
 void Cast128::splitI(uint I, uint8* Ia, uint8* Ib, uint8* Ic, uint8* Id) {
@@ -193,6 +193,7 @@ void Cast128::writeLastBlock(std::ofstream& out, Cast128::Block v) {
 void Cast128::encryptFile(std::string inputFileName, std::string outFileName, Cast128::Key key) {
 	std::ifstream inputFile(inputFileName, std::ios::binary | std::ios::in);
 	if (!inputFile.is_open()) {
+		throw std::exception("file doesnt exist!");
 		return;
 	}
 	std::vector<char> res((std::istreambuf_iterator<char>(inputFile)),
@@ -220,6 +221,7 @@ void Cast128::encryptFile(std::string inputFileName, std::string outFileName, Ca
 void Cast128::decryptFile(std::string inputFileName, std::string outFileName, Cast128::Key key) {
 	std::ifstream inputFile(inputFileName, std::ios::binary | std::ios::in);
 	if (!inputFile.is_open()) {
+		throw std::exception("file doesnt exist!");
 		return;
 	}
 	std::vector<char> res((std::istreambuf_iterator<char>(inputFile)),
@@ -250,28 +252,52 @@ void Cast128::decryptFile(std::string inputFileName, std::string outFileName, Ca
 void Cast128::correlation(std::string src, std::string encr) {
 	std::ifstream inputFile(src, std::ios::binary | std::ios::in);
 	if (!inputFile.is_open()) {
-		return;
+		throw std::exception("file doesnt exist!");
 	}
+	std::ifstream outFile(encr, std::ios::binary | std::ios::in);
+	if (!outFile.is_open()) {
+		throw std::exception("file doesnt exist!");
+	}
+
 	std::vector<char> res((std::istreambuf_iterator<char>(inputFile)),
 		std::istreambuf_iterator<char>());
-	double xCount = 0;
-	for each (auto var in res) {
-		std::bitset<32> bit(var);
-		xCount += bit.count() / 32.0;
-	}
-
-	std::ifstream e(encr, std::ios::binary | std::ios::in);
-	if (!inputFile.is_open()) {
-		return;
-	}
-	std::vector<char> res2((std::istreambuf_iterator<char>(e)),
+	std::vector<char> res2((std::istreambuf_iterator<char>(outFile)),
 		std::istreambuf_iterator<char>());
 
-	double yCount = 0;
-	for each (auto var in res2) {
-		std::bitset<32> bit(var);
-		yCount += bit.count() / 32.0;
+	int fileDiff = res2.size() - res.size();
+	for (int i = 0; i < abs(fileDiff); ++i) {
+		if (fileDiff > 0) {
+			res2.pop_back();
+		}
 	}
+
+	double averageX = 0;
+	for each (auto var in res) {
+		std::bitset<8> bit(var);
+		averageX += bit.count();
+	}
+	averageX /= res.size() * 8;	
+
+	double averageY = 0;
+	for each (auto var in res2) {
+		std::bitset<8> bit(var);
+		averageY += bit.count();
+	}
+	averageY /= res.size() * 8;
+	
+	double correlationTop = 0.0;
+	double correlationBottom = 0.0;
+	for (int i = 0; i < res.size(); ++i) {
+		for (int j = 0; j < 8; ++j) {
+			std::bitset<8> bitX(res[i]);
+			std::bitset<8> bitY(res2[i]);
+			bool x = bitX[j];
+			bool y = bitY[j];
+			correlationTop += ((x - averageX)*(y - averageY));
+			correlationBottom += sqrt(pow(x - averageX, 2)*pow(y - averageY,2));
+		}
+	}
+	std::cout << "correlation = " << abs(correlationTop/correlationBottom);
 }
 
 void Cast128::readKey(const std::string path, Cast128::Key* key) {
@@ -285,7 +311,7 @@ void Cast128::readKey(const std::string path, Cast128::Key* key) {
 		throw std::exception("key is too small!");
 	}
 	for (int i = keyLength / 8 - 1; i >= 0; --i) {
-		((uint8_t*)(*key))[getBitNumber[i]] = res[i];
+		((uint8_t*)(*key))[getByteNumber[i]] = res[i];
 	}
 }
 
