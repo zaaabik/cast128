@@ -12,6 +12,7 @@ int main(int argc, char* argv[]) {
 	const string encryptKey = "-e";
 	const string decryptKey = "-d";
 	const string generateKey = "-g";
+	const string correlationKey = "-c";
 	const string mode = "mode";
 	map<std::string, std::string> commandLineArgs{
 		{outFileKey,"out.txt"},
@@ -45,6 +46,9 @@ int main(int argc, char* argv[]) {
 		if (args[i] == generateKey) {
 			commandLineArgs[mode] = generateKey;
 		}		
+		if (args[i] == correlationKey) {
+			commandLineArgs[mode] = correlationKey;
+		}
 	}
 	
 	if (commandLineArgs[mode] == generateKey) {
@@ -68,11 +72,12 @@ int main(int argc, char* argv[]) {
 			std::cout << e.what();
 		}
 	}
-
-	/*Cast128::Key key = { 0x01234567, 0x12345678, 0x23456789, 0x3456789A };
-	Cast128::Block msg = { 0x01234567, 0x89ABCDEF };
-	Cast128::Block res = Cast128::encrypt(key, msg);
-	Cast128::correlation("in.txt", "res.txt");*/
-
+	if (commandLineArgs[mode] == correlationKey) {
+		try {
+			Cast128::correlation(commandLineArgs[inFileKey], commandLineArgs[outFileKey]);
+		} catch (exception e) {
+			std::cout << e.what();
+		}
+	}
 	return 0;
 }
